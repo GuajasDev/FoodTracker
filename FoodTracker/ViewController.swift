@@ -76,13 +76,21 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         self.definesPresentationContext = true
         
         self.suggestedSearchFoods = ["apple", "bagel", "banana", "beer", "bread", "carrots", "cheddar cheese", "chicken breast", "chilli with beans", "chocolate chip cookie", "coffee", "cola", "corn", "egg", "graham cracker", "granola bar", "green beans", "ground beef patty", "hot dog", "ice cream", "jelly doughnut", "ketchup", "milk", "mixed nuts", "mustard", "oatmeal", "orange juice", "peanut butter", "pizza", "pork chop", "potato", "potato chips", "pretzels", "raisins", "ranch salad dressing", "red wine", "rice", "salsa", "shrimp", "spaghetti", "spaghetti sauce", "tuna", "white wine", "yellow cake"]
+        
+        // This ViewController is now listening to the kUSDAItemCompleted notification (sent by the DataController). When it gets the notification it will run the 'usdaItemComplete' function
+        NSNotificationCenter.defaultCenter().addObserver(self, selector: "usdaItemDidComplete:", name: kUSDAItemCompleted, object: nil)
+    }
+    
+    deinit {
+        // Remove the notification when the ViewController is deinitialised so we do not try to send messages to a ViewController thaat no longer exists
+        NSNotificationCenter.defaultCenter().removeObserver(self)
     }
     
     override func prepareForSegue(segue: UIStoryboardSegue, sender: AnyObject?) {
         if segue.identifier == "toDetailVCSegue" {
             if sender != nil {
                 // We passed in a USDAItem, which is comming from the 'Saved' USDAItems
-                var detailVC = segue.destinationViewController as DetailViewController
+                var detailVC = segue.destinationViewController as! DetailViewController
                 detailVC.usdaItem = sender as? USDAItem
                 
             }
@@ -97,7 +105,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     // MARK: UITableViewDataSource
     
     func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
-        let cell:UITableViewCell = tableView.dequeueReusableCellWithIdentifier("Cell") as UITableViewCell
+        let cell:UITableViewCell = tableView.dequeueReusableCellWithIdentifier("Cell") as! UITableViewCell
         var foodName:String
         
         let selectedScopeButtonIndex = self.searchController.searchBar.selectedScopeButtonIndex
@@ -347,7 +355,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
             
             // In 'options' we have '.MutableLeaves', this is syntax (or shortcut) for 'NSJSONReadingOptions.MutableLeaves', ie it is correct written both ways. Since the only type we can have there is 'NSJSONReadingOptions' we can shorten it by not writing it and it will be inferred. Also, we write 'as?' because jsonDictionary will be an Optional NSDictionary and when we are specifying 'as' something optional the correct syntax is 'as?' something
             var jsonDictionary = NSJSONSerialization.JSONObjectWithData(data, options: .MutableLeaves, error: &conversionError) as? NSDictionary
-            println(jsonDictionary)
+//            println(jsonDictionary)
             
             // Error handling and saving the json results
             if conversionError != nil {
@@ -381,9 +389,25 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     func requestFavouritedUSDAItems() {
         // Create a request and pass it to the managedObjectContext when it executes the fetch request
         let fetchRequest = NSFetchRequest(entityName: "USDAItem")
-        let appDelegate = (UIApplication.sharedApplication().delegate as AppDelegate)
+        let appDelegate = (UIApplication.sharedApplication().delegate as! AppDelegate)
         let managedObjectContext = appDelegate.managedObjectContext
-        self.favouritedUSDAItems = managedObjectContext?.executeFetchRequest(fetchRequest, error: nil) as [USDAItem]
+        self.favouritedUSDAItems = managedObjectContext?.executeFetchRequest(fetchRequest, error: nil) as! [USDAItem]
+    }
+    
+    // MARK: NSNotificationCenter
+    
+    func usdaItemDidComplete(notification: NSNotification) {
+        
+        println("usdaItemDidComplete in ViewController")
+        
+        // Update the Core Data
+        requestFavouritedUSDAItems()
+        
+        // Chack if the selectedScopeButtonIndex in the searhBar is 22 (ie in 'Saved'), in which case reload the data
+        let selectedScopeButtonIndex = self.searchController.searchBar.selectedScopeButtonIndex
+        if selectedScopeButtonIndex == 2 {
+            self.tableView.reloadData()
+        }
     }
 }
 

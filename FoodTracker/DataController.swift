@@ -10,6 +10,8 @@ import Foundation
 import UIKit
 import CoreData
 
+let kUSDAItemCompleted = "USDAItemInstanceCompleted"
+
 class DataController {
     
     class func jsonAsUSDAIdAndNameSearchResults(json: NSDictionary) -> [(name: String, idValue: String)] {
@@ -22,7 +24,7 @@ class DataController {
         if json["hits"] != nil {
             
             // We use AnyObject because the json dictionary has dictionaries, arrays, and strings. So it's easier to just say AnyObject rather than try to specify each one
-            let results:[AnyObject] = json["hits"]! as [AnyObject]
+            let results:[AnyObject] = json["hits"]! as! [AnyObject]
             
             for itemDictionary in results {
                 
@@ -32,12 +34,12 @@ class DataController {
                     if itemDictionary["fields"] != nil {
                         
                         // We can unwrap idemDictionary["fields"] since we have already checked it is not nil
-                        let fieldsDictionary = itemDictionary["fields"]! as NSDictionary
+                        let fieldsDictionary = itemDictionary["fields"]! as! NSDictionary
                         if fieldsDictionary["item_name"] != nil {
                             // We have an item name
                             
-                            let idValue:String = itemDictionary["_id"]! as String
-                            let name:String = fieldsDictionary["item_name"]! as String
+                            let idValue:String = itemDictionary["_id"]! as! String
+                            let name:String = fieldsDictionary["item_name"]! as! String
                             searchResult = (name : name, idValue : idValue)
                             usdaItemSearchResults += [searchResult]
                         }
@@ -53,18 +55,18 @@ class DataController {
         
         // The json NSDictionary will have several levels (ie dictionary with arrays that have dictionaries that have dictionaries, etc... If unsure of what to do, println() it
         if json["hits"] != nil {
-            let results:[AnyObject] = json["hits"]!  as [AnyObject]
+            let results:[AnyObject] = json["hits"]!  as! [AnyObject]
             
             for itemDictionary in results {
-                if itemDictionary["_id"] != nil && itemDictionary["_id"] as String == idValue {
+                if itemDictionary["_id"] != nil && itemDictionary["_id"] as! String == idValue {
                     // if the ID in the itemDictionary exists AND the ID (as a String) is the idValue we are passing in (so we only use this specific itemDictionary). We trust that the API will use unique IDs (which is usually the case)
                     
                     // Get ready to save in Core Data
-                    let managedObjectContext = (UIApplication.sharedApplication().delegate as AppDelegate).managedObjectContext
+                    let managedObjectContext = (UIApplication.sharedApplication().delegate as! AppDelegate).managedObjectContext
                     var requestForUSDAItem = NSFetchRequest(entityName: "USDAItem")
                     
                     // Create an itemDictionary ID and use it to check if we have already saved this item (with this ID value) to core data before
-                    let itemDictionaryId = itemDictionary["_id"]! as String
+                    let itemDictionaryId = itemDictionary["_id"]! as! String
                     
                     // Create a NSPredicate instance (like a constraint, you can do checks). The format is idValue == (our second argument), ie does the idValue == itemDictionaryId. So if you already have something stored to Core Data with the same idValue then add that to our request
                     let predicate = NSPredicate(format: "idValue == %@", itemDictionaryId)
@@ -92,28 +94,28 @@ class DataController {
                         let usdaItem = USDAItem(entity: entityDescription!, insertIntoManagedObjectContext: managedObjectContext!)
                         
                         // Save the idValue in the usdaItem
-                        usdaItem.idValue = itemDictionary["_id"]! as String
+                        usdaItem.idValue = itemDictionary["_id"]! as! String
                         
                         // Update the the date added
                         usdaItem.dateAdded = NSDate()
                         
                         // Get into the 'fields' dictionary
                         if itemDictionary["fields"] != nil {
-                            let fieldsDictionary = itemDictionary["fields"]! as NSDictionary
+                            let fieldsDictionary = itemDictionary["fields"]! as! NSDictionary
                             
                             if fieldsDictionary["item_name"] != nil {
                                 // Save the name of the usdaItem
-                                usdaItem.name = fieldsDictionary["item_name"]! as String
+                                usdaItem.name = fieldsDictionary["item_name"]! as! String
                             }
                             
                             if fieldsDictionary["usda_fields"] != nil {
                                 // The fields dictionary exists, now index into that one to save all the required data
                                 
-                                let usdaFieldsDictionary = fieldsDictionary["usda_fields"]! as NSDictionary
+                                let usdaFieldsDictionary = fieldsDictionary["usda_fields"]! as! NSDictionary
                                 
                                 // ----- Do Calcium! -----
                                 if usdaFieldsDictionary["CA"] != nil {
-                                    let calciumDictionary = usdaFieldsDictionary["CA"]! as NSDictionary
+                                    let calciumDictionary = usdaFieldsDictionary["CA"]! as! NSDictionary
                                     
                                     if calciumDictionary["value"] != nil {
                                         // Some values are saved as strings (ie "8.345") and others as Ints (ie 0), so specify anyObject for calciumValue AND THEN conver it into a String by String interpolation (note that doing string interpolation to a string still returns a string)
@@ -128,7 +130,7 @@ class DataController {
                                 
                                 // ----- Do Carbohydrates! -----
                                 if usdaFieldsDictionary["CHOCDF"] != nil {
-                                    let carbohydrateDictionary = usdaFieldsDictionary["CHOCDF"]! as NSDictionary
+                                    let carbohydrateDictionary = usdaFieldsDictionary["CHOCDF"]! as! NSDictionary
                                     
                                     if carbohydrateDictionary["value"] != nil {
                                         let carbohydrateValue: AnyObject = carbohydrateDictionary["value"]!
@@ -142,7 +144,7 @@ class DataController {
                                     
                                 // ----- Do Fat! -----
                                 if usdaFieldsDictionary["FAT"] != nil {
-                                    let fatTotalDictionary = usdaFieldsDictionary["FAT"]! as NSDictionary
+                                    let fatTotalDictionary = usdaFieldsDictionary["FAT"]! as! NSDictionary
                                         
                                     if fatTotalDictionary["value"] != nil {
                                         let fatTotalValue: AnyObject = fatTotalDictionary["value"]!
@@ -156,7 +158,7 @@ class DataController {
                                 
                                 // ----- Do Cholesterol! -----
                                 if usdaFieldsDictionary["CHOLE"] != nil {
-                                    let cholesterolDictionary = usdaFieldsDictionary["CHOLE"]! as NSDictionary
+                                    let cholesterolDictionary = usdaFieldsDictionary["CHOLE"]! as! NSDictionary
                                     
                                     if cholesterolDictionary["value"] != nil {
                                         let cholesterolValue: AnyObject = cholesterolDictionary["value"]!
@@ -170,7 +172,7 @@ class DataController {
                                 
                                 // ----- Do Protein! -----
                                 if usdaFieldsDictionary["PROCNT"] != nil {
-                                    let proteinDictionary = usdaFieldsDictionary["PROCNT"]! as NSDictionary
+                                    let proteinDictionary = usdaFieldsDictionary["PROCNT"]! as! NSDictionary
                                     
                                     if proteinDictionary["value"] != nil {
                                         let proteinValue: AnyObject = proteinDictionary["value"]!
@@ -184,7 +186,7 @@ class DataController {
                                 
                                 // ----- Do Sugar! -----
                                 if usdaFieldsDictionary["SUGAR"] != nil {
-                                    let sugarDictionary = usdaFieldsDictionary["SUGAR"]! as NSDictionary
+                                    let sugarDictionary = usdaFieldsDictionary["SUGAR"]! as! NSDictionary
                                     
                                     if sugarDictionary["value"] != nil {
                                         let sugarValue: AnyObject = sugarDictionary["value"]!
@@ -198,7 +200,7 @@ class DataController {
                                 
                                 // ----- Do Vitamin C! -----
                                 if usdaFieldsDictionary["VITC"] != nil {
-                                    let vitaminCDictionary = usdaFieldsDictionary["VITC"]! as NSDictionary
+                                    let vitaminCDictionary = usdaFieldsDictionary["VITC"]! as! NSDictionary
                                     
                                     if vitaminCDictionary["value"] != nil {
                                         let vitaminCValue: AnyObject = vitaminCDictionary["value"]!
@@ -212,7 +214,7 @@ class DataController {
                                 
                                 // ----- Do Energy! -----
                                 if usdaFieldsDictionary["ENERC_KCAL"] != nil {
-                                    let energyDictionary = usdaFieldsDictionary["ENERC_KCAL"]! as NSDictionary
+                                    let energyDictionary = usdaFieldsDictionary["ENERC_KCAL"]! as! NSDictionary
                                     
                                     if energyDictionary["value"] != nil {
                                         let energyValue: AnyObject = energyDictionary["value"]!
@@ -225,7 +227,10 @@ class DataController {
                                 }
                                 
                                 // SAVE THE CHANGES TO CORE DATA!!
-                                (UIApplication.sharedApplication().delegate as AppDelegate).saveContext()
+                                (UIApplication.sharedApplication().delegate as! AppDelegate).saveContext()
+                                
+                                // Create an NSNotification. Any class or view controller 'listening' to the kUSDAItemCompleted notification will get access to the object usdaItem. It's like a radio station
+                                NSNotificationCenter.defaultCenter().postNotificationName(kUSDAItemCompleted, object: usdaItem)
                             }
                         }
                     }
