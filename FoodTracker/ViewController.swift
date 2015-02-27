@@ -7,6 +7,7 @@
 //
 
 import UIKit
+import CoreData
 
 class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSource, UISearchBarDelegate, UISearchControllerDelegate, UISearchResultsUpdating {
     
@@ -18,20 +19,20 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     
     // MARK: Variables
     
-    var searchController:UISearchController!
-    
+    // Arrays
     var suggestedSearchFoods:[String] = []
     var filteredSuggestedSearchFoods:[String] = []
-    
     var scopeButtonTitles = ["Recommended", "Search Results", "Saved"]
-    
     var apiSearchForFoods:[(name: String, idValue: String)] = []
+    var favouritedUSDAItems:[USDAItem] = []
+    var filteredFavouritedUSDAItems:[USDAItem] = []
     
+    // Dictionaries
     var jsonResponse:NSDictionary!
     
+    // Controllers
+    var searchController:UISearchController!
     var dataController = DataController()
-    
-    var favouritedUSDAItems:[USDAItem] = []
     
     // MARK:  Constants
     
@@ -77,6 +78,17 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         self.suggestedSearchFoods = ["apple", "bagel", "banana", "beer", "bread", "carrots", "cheddar cheese", "chicken breast", "chilli with beans", "chocolate chip cookie", "coffee", "cola", "corn", "egg", "graham cracker", "granola bar", "green beans", "ground beef patty", "hot dog", "ice cream", "jelly doughnut", "ketchup", "milk", "mixed nuts", "mustard", "oatmeal", "orange juice", "peanut butter", "pizza", "pork chop", "potato", "potato chips", "pretzels", "raisins", "ranch salad dressing", "red wine", "rice", "salsa", "shrimp", "spaghetti", "spaghetti sauce", "tuna", "white wine", "yellow cake"]
     }
     
+    override func prepareForSegue(segue: UIStoryboardSegue, sender: AnyObject?) {
+        if segue.identifier == "toDetailVCSegue" {
+            if sender != nil {
+                // We passed in a USDAItem, which is comming from the 'Saved' USDAItems
+                var detailVC = segue.destinationViewController as DetailViewController
+                detailVC.usdaItem = sender as? USDAItem
+                
+            }
+        }
+    }
+    
     override func didReceiveMemoryWarning() {
         super.didReceiveMemoryWarning()
         // Dispose of any resources that can be recreated.
@@ -94,8 +106,10 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
             // We are in the 'Recommended' tab
             
             if self.searchController.active {
+                // We are not searching, so return the filtered suggested search foods
                 foodName = self.filteredSuggestedSearchFoods[indexPath.row]
             } else {
+                // We are not searching, so return all the suggested search foods
                 foodName = self.suggestedSearchFoods[indexPath.row]
             }
         } else if selectedScopeButtonIndex == 1 {
@@ -106,7 +120,13 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         } else {
             // We are in the 'Saved' tab
             
-            foodName = ""
+            if self.searchController.active {
+                // We are searching, so return the names of the filtered favourited USDA items
+                foodName = self.filteredFavouritedUSDAItems[indexPath.row].name
+            } else {
+                // We are not searching, so return all the names of the favourited USDA items
+                foodName = self.favouritedUSDAItems[indexPath.row].name
+            }
         }
         
         cell.textLabel?.text = foodName
@@ -122,8 +142,10 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
             // We are in the 'Recommended' tab
             
             if self.searchController.active {
+                // We are not searching, so return the count of filtered suggested search foods
                 return self.filteredSuggestedSearchFoods.count
             } else {
+                // We are not searching, so return the count of all the suggested search foods
                 return self.suggestedSearchFoods.count
             }
         } else if selectedScopeButtonIndex == 1 {
@@ -133,7 +155,13 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         } else {
             // We are in the 'Saved' tab
             
-            return 0
+            if self.searchController.active {
+                // We are searching, so return the count of the filtered favourited USDA items
+                return self.filteredFavouritedUSDAItems.count
+            } else {
+                // We are not searching, so return the count of all the favourited USDA items
+                return self.favouritedUSDAItems.count
+            }
         }
     }
     
@@ -164,6 +192,9 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         } else if selectedScopeButtonIndex == 1 {
             // We are in the 'Search Results' tab
             
+            // Go to the detailVC and dont pass anything, since the information hasn't been loaded yet
+            self.performSegueWithIdentifier("toDetailVCSegue", sender: nil)
+            
             // Get the idValue back from the tuple
             let idValue = apiSearchForFoods[indexPath.row].idValue
             
@@ -173,6 +204,16 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
             
         } else if selectedScopeButtonIndex == 2 {
             // We are in the 'Saved' tab
+            
+            if self.searchController.active {
+                // We are searching
+                let usdaItem = self.filteredFavouritedUSDAItems[indexPath.row]
+                self.performSegueWithIdentifier("toDetailVCSegue", sender: usdaItem)
+            } else {
+                // We are not searching
+                let usdaItem = self.favouritedUSDAItems[indexPath.row]
+                self.performSegueWithIdentifier("toDetailVCSegue", sender: usdaItem)
+            }
             
         }
     }
@@ -201,6 +242,12 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     
     func searchBar(searchBar: UISearchBar, selectedScopeButtonIndexDidChange selectedScope: Int) {
         // The selectedScopeButtonIndex changed
+        
+        // Every time the 'Saved' tab, we request the favourited (or saved) USDA items
+        if selectedScope == 2 {
+            requestFavouritedUSDAItems()
+        }
+        
         self.tableView.reloadData()
     }
     
@@ -208,11 +255,23 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     
     func filterContentForSearch(searchText: String, scope: Int) {
         
-        self.filteredSuggestedSearchFoods = self.suggestedSearchFoods.filter({ (food : String) -> Bool in
-            // This closure iterates through the sugestedSearchFoods, calls each element 'food' and compares them to the 'searchText' string that was passed to the function. Then, if foodMatch is NOT nil (ie the searchText contains values of the food element) return true and add the element into the filteredSuggestedSearchFoods array, otherwise return false and don't add it
-            var foodMatch = food.rangeOfString(searchText)
-            return foodMatch != nil
-        })
+        if scope == 0 {
+            // We are in the 'Recomended' tab
+            
+            self.filteredSuggestedSearchFoods = self.suggestedSearchFoods.filter({ (food : String) -> Bool in
+                // This closure iterates through the sugestedSearchFoods, calls each element 'food' and compares them to the 'searchText' string that was passed to the function. Then, if foodMatch is NOT nil (ie the searchText contains values of the food element) return true and add the element into the filteredSuggestedSearchFoods array, otherwise return false and don't add it
+                var foodMatch = food.rangeOfString(searchText)
+                return foodMatch != nil
+            })
+        } else if scope == 2 {
+            // We are in the 'Saved' tab
+            
+            self.filteredFavouritedUSDAItems = self.favouritedUSDAItems.filter({ (item: USDAItem) -> Bool in
+                // This closure iterates through the favouritedUSDAItems, calls each element 'item' and compares the name of that 'item' to the 'searchText' string that was passed to the function. Then, if stringMatch is NOT nil (ie the searchText contains values of the item element) return true and add the element into the filteredFavouritedUSDAItems array, otherwise return false and don't add it
+                var stringMatch = item.name.rangeOfString(searchText)
+                return stringMatch != nil
+            })
+        }
     }
     
     func makeRequest(searchString: String) {
@@ -320,7 +379,11 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     // MARK: Setup Core Data
     
     func requestFavouritedUSDAItems() {
-        
+        // Create a request and pass it to the managedObjectContext when it executes the fetch request
+        let fetchRequest = NSFetchRequest(entityName: "USDAItem")
+        let appDelegate = (UIApplication.sharedApplication().delegate as AppDelegate)
+        let managedObjectContext = appDelegate.managedObjectContext
+        self.favouritedUSDAItems = managedObjectContext?.executeFetchRequest(fetchRequest, error: nil) as [USDAItem]
     }
 }
 
